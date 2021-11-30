@@ -32,7 +32,7 @@ class Mover:
             rospy.get_caller_id() + "I heard %s", data.header.seq)
         min_dist = min(data.ranges)
         t = Twist()
-        if min_dist < 4:
+        if min_dist < 3:
             t.angular.z = 1.0
         else:
             t.linear.x = 0.8
