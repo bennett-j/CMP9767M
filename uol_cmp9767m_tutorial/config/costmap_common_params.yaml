@@ -10,11 +10,11 @@ map_layer:
 #  map_topic: /no_go_map
 
 global_inflation_layer:
-  inflation_radius: 1.75
+  inflation_radius: 5
   cost_scaling_factor: 2.58
 
 local_inflation_layer:
-  inflation_radius: 1.5
+  inflation_radius: 3
   cost_scaling_factor: 5.0
 
 global_obstacle_layer:
