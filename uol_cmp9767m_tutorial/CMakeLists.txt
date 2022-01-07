@@ -9,9 +9,9 @@ project(uol_cmp9767m_tutorial)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
 ## For DoDishesAction: uncomment the following lines
-#  genmsg
-#  actionlib_msgs
-#  actionlib
+  genmsg
+  actionlib_msgs
+  actionlib
   geometry_msgs
   nav_msgs
   rospy
@@ -78,19 +78,19 @@ add_service_files(
 
 ## Generate actions in the 'action' folder
 ## For DoDishesAction: uncomment the following lines
-# add_action_files(
-#   DIRECTORY
-#   action
-#   FILES
-#   DoDishes.action
-# )
+ add_action_files(
+   DIRECTORY
+   action
+   FILES
+   DoDishes.action
+ )
 
 ## Generate added messages and services with any dependencies listed here
 generate_messages(
   DEPENDENCIES
   std_msgs
 ## For DoDishesAction: uncomment the following line
-# actionlib_msgs
+  actionlib_msgs
 )
 
 ################################################
