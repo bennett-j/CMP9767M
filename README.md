@@ -1,6 +1,13 @@
 # CMP9767M
 These are notes to myself, especially remembering useful commands and syntax.
 
+## Getting Started
+Install instructions on LCAS wiki.
+- Update using `sudo apt-get update && sudo apt-get upgrade`.
+- Run `source /opt/ros/melodic/setup.bash`.
+- Start simulation using `roslaunch bacchus_gazebo vineyard_demo.launch world_name:=vineyard_small`
+  - If it doesn't work try `killall -9 gzserver` to ensure all simulator instances have been terminated.
+
 ## Git Version Control
 - To pull from LCAS repo`git pull upstream master`. Other related commands: `git remote -v` `git branch -r` `git checkout remotes/upstream/master`.
   - From what I understand you can have many remotes with different names. `upstream` is a common one but not mandatory and not to be confused with the use of `--set-upstream` below. At some point when initialising the repo you'll need to do `git remote add <name> <url>` which connects a remote repo using `<name>` as a shortcut for <url>.  
