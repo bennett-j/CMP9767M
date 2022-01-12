@@ -33,7 +33,7 @@ A workspace can be considered an overlaid environment ontop of the system instal
 ```
 - In `src/` run `catkin_init_workspace`. It will create a `CMakeLists.txt`.
 - In `my_repo_folder/` initialise a git repository using `git init`.
-- To create a package, set `cd` to `my_repo_folder/` and use `catkin_create_pkg` which will create a folder for the package and some files within. Use `catkin_create_pkg -h` to show help so you can provide arguments which will prefill `package.xml`. Alternatively don't provide arguments and populate later.
+- To create a package, set `cd` to `my_repo_folder/` and use `catkin_create_pkg` which will create a folder for the package and some files within. Use `catkin_create_pkg -h` to show help to remind of arguments syntax which will prefill `package.xml`. Alternatively don't provide arguments and populate later.
 - Run `catkin_make` or `catkin build`. Use either but you'll have to use the same afterwards. Marc recommends build.
 - To use your own workspace run `source devel/setup.bash` (from your workspace directory). NB. can test using a command like `roscd my_pkg_name/` to see if it will shortcut you to the folder.
 - Create some scripts (e.g. `my_script.py`), write some code. Then rerun `catkin build` (or make) so catkin can do its thing. These can then be run using `rosrun my_pkg_name my_script.py`. I believe future modifications to the script don't need to be rebuilt.
