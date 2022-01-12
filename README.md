@@ -13,8 +13,8 @@ Install instructions on LCAS wiki.
   - From what I understand you can have many remotes with different names. `upstream` is a common one but not mandatory and not to be confused with the use of `--set-upstream` below. At some point when initialising the repo you'll need to do `git remote add <name> <url>` which connects a remote repo using `<name>` as a shortcut for <url>.  
 - Contrast to `git pull origin main` to pull from my remote repo.
 - Create a branch `git checkout -b <branch>` drop `-b` flag to checkout existing branch.
-- If created branch locally, need to use `git push --set-upstream origin main` or more generally `git push --set-upstream <remote> <branch>`. Is this always true?
-- `git push origin --all` push all local branches to specified remote handy.
+- If created branch locally, need to use `git push --set-upstream origin main` or more generally `git push --set-upstream <remote> <branch>`. Use the flag `-u` for `--set-upstream` instead.
+- `git push origin --all` push all local branches to specified remote handy and seems to evade the need for `--set-upstream`.
   
 ## Understanding Workspaces and Packages
 A workspace can be considered an overlaid environment ontop of the system installed one. Allows us to use packages - that we may be developing or ones from others - that aren't system installed. `catkin` is ROS's build system which essentially turns raw source code into a more useable form (I don't know the specifics). Following Marc's suggestion our file structure goal is:
