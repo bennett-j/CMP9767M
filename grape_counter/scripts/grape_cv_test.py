@@ -58,9 +58,18 @@ cv2.imwrite(path, hsv)
 
 cv2.imshow('hsv',hsv)
 
-# bunch = hsv[338:381,266:298,:]
-# cv2.imshow('bunch',bunch)
-# cv2.waitKey(0)
+bunch = hsv[338:381,266:298,:]
+cv2.imshow('bunch',bunch)
+zoom_bunch = bunch[5:25,6:26,:]
+cv2.imshow('zoom bunch', zoom_bunch)
+cv2.waitKey(0)
+
+# this kind of works. Should do some blurring or stuff first. Maybe erosion after too.
+# this could be too strict?
+mask1 = cv2.inRange(hsv, (75, 0, 25), (150, 150, 75))
+cv2.imshow("grapes?", mask1)
+cv2.imshow('hsv',hsv)
+cv2.waitKey(0)
 
 #waits for user to press any key 
 cv2.waitKey(0) 
