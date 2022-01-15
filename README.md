@@ -7,6 +7,7 @@ Install instructions on LCAS wiki.
 - Run `source /opt/ros/melodic/setup.bash`.
 - Start simulation using `roslaunch bacchus_gazebo vineyard_demo.launch world_name:=vineyard_small`
   - If it doesn't work try `killall -9 gzserver` to ensure all simulator instances have been terminated.
+- `rosrun key_teleop key_teleop.py key_vel:=/thorvald_001/teleop_joy/cmd_vel` to use arrow keys to drive around.
 
 ## Git Version Control
 - To pull from LCAS repo`git pull upstream master`. Other related commands: `git remote -v` `git branch -r` `git checkout remotes/upstream/master`.
