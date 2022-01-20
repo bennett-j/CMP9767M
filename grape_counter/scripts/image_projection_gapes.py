@@ -78,17 +78,28 @@ class image_projection:
         morphed = cv2.morphologyEx(mask1, cv2.MORPH_CLOSE, kernel_e5)
 
         _, contours, hierarchy = cv2.findContours(morphed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-        areas = np.empty(len(contours))
+        area = [] #np.empty(len(contours))
+        centroid = [] #np.empty((len(contours),2))
         drawing_ext = np.zeros((mask1.shape[0], mask1.shape[1], 3), dtype=np.uint8)
 
         for i, c in enumerate(contours):
-            areas[i] = cv2.contourArea(c)
-            if areas[i] > 100:
-                color = (255,0,150)
+            a = cv2.contourArea(c)
+            
+            # if M["m00"] == 0: this only occurs when area = 0 so won't get erros if we filter out small areas
+            if a > 100:
+                M = cv2.moments(c)
+                cx = int(M['m10']/M['m00'])
+                cy = int(M['m01']/M['m00'])
+                centroid.append((cx, cy))
+                area.append(a)
+                color = (255,0,150) # purple
+                # only draw centroid for larger areas
+                drawing_ext = cv2.circle(drawing_ext, (cx, cy), 3, (255,255,0), 2)
             else:
-                color = (0,255,255)
+                color = (0,255,255) # yellow
 
             cv2.drawContours(drawing_ext, contours, i, color, 2)
+            
 
         cv2.imshow('Contours ext', drawing_ext)
         cv2.waitKey(1)
