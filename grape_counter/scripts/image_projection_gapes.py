@@ -104,15 +104,7 @@ class image_projection:
         cv2.imshow('Contours ext', drawing_ext)
         cv2.waitKey(1)
         
-        return
-
-        # # calculate moments of the binary image
-        # M = cv2.moments(image_mask)
-
-        # if M["m00"] == 0:
-        #     print('No object detected.')
-        #     return
-
+        
         # calculate the y,x centroid
         image_coords = (M["m01"] / M["m00"], M["m10"] / M["m00"])
         # "map" from color to depth image
