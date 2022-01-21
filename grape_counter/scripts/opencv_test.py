@@ -30,7 +30,7 @@ class image_converter:
         namedWindow("masked")
         namedWindow("canny")
         cv_image = self.bridge.imgmsg_to_cv2(data, "bgr8")
-        im_big = cv_image
+        # im_big = cv_image
         cv_image = resize(cv_image, None, fx=0.2, fy=0.2, interpolation = INTER_CUBIC)
 
         mask = inRange(cv_image, (0, 150, 150), (255, 255, 255))
@@ -40,9 +40,11 @@ class image_converter:
         imshow("canny", img3)
 
         # save image
-        path = os.path.join(os.path.expanduser('~'), 'cmp9767_ws/src/CMP9767/grape_counter/grapes2.png')
-        cv2.imwrite(path, im_big)
-        self.image_sub.unregister()
+        # path = os.path.join(os.path.expanduser('~'), 'cmp9767_ws/src/CMP9767/grape_counter/grapes2.png')
+        # cv2.imwrite(path, im_big)
+        # self.image_sub.unregister()
+
+        
 
         imshow("Image window", cv_image)
         waitKey(1)
