@@ -21,8 +21,16 @@ from sensor_msgs import point_cloud2
 from sensor_msgs.msg import PointCloud2, PointField
 from std_msgs.msg import Header
 
-from tf2_sensor_msgs.tf2_sensor_msgs import do_transform_cloud
+from tf2_sensor_msgs.tf2_sensor_msgs import do_transform_cloud, transform_to_kdl
+
+# going to use tf2 because tf depreciated 
+# useful for what I want to do with transforms and pc2
+# https://wiki.ros.org/tf2/Tutorials/Writing%20a%20tf2%20listener%20%28Python%29
 import tf2_ros
+
+import PyKDL
+
+
 
 
 class image_projection:
@@ -50,11 +58,10 @@ class image_projection:
         rospy.Subscriber("/thorvald_001/kinect2_front_sensor/sd/image_depth_rect",
             Image, self.image_depth_callback)
 
-        self.tf_listener = tf.TransformListener()
-        
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf2_listener = tf2_ros.TransformListener(self.tf_buffer)
-
+        self.tfBuffer = tf2_ros.Buffer()
+        self.tfListener = tf2_ros.TransformListener(self.tfBuffer)
+        # Once the listener is created, it starts receiving tf2 transformations over the wire, and buffers them for up to 10 seconds.
+                
     def camera_info_callback(self, data):
         self.camera_model = image_geometry.PinholeCameraModel()
         self.camera_model.fromCameraInfo(data)
@@ -145,15 +152,37 @@ class image_projection:
         # transform
         #points_map = self.tf_listener.transformPointCloud('map', pc2)
         # not working for a PointCloud2? Need PCL?
-        transform = self.tf_buffer.lookup_transform('map', data.header.frame_id, header.stamp,rospy.Duration(1.0))
+        
+        try:
+            # will data.header.stamp use the time the image arrived?
+            transform = self.tfBuffer.lookup_transform('map', "thorvald_001/kinect2_front_rgb_optical_frame", data.header.stamp) #, rospy.Duration(1.0)
+        except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
+           print(e)
+           return
+           # TODO figure out what to do here with the exception
+        
         cloud_out = do_transform_cloud(pc2, transform)
 
+        # transform points to map coords for saving in python
+        # using structure of tf2_sensor_msgs.py by Willow Garage
+        t_kdl = transform_to_kdl(transform)
+        points_map = []
+        for p in points:
+            p_out = t_kdl * PyKDL.Vector(p[0], p[1], p[2])
+            #print(p[3:])
+            points_map.append((p_out[0], p_out[1], p_out[2])+tuple(p[3:]))
+
+        header.frame_id = 'map'    
+        pc2_map = point_cloud2.create_cloud(header, fields, points_map)
+
         # publish so we can see in rviz
-        self.pc2_pub.publish(cloud_out)
+        # self.pc2_pub.publish(cloud_out)
+        self.pc2_pub.publish(pc2_map)
 
         print("Number of points: ", len(points))
         print("Points: ", points)
         
+       
 
         # show contours and centres 
         cv2.imshow('Contours ext', drawing_ext)
