@@ -17,6 +17,14 @@ from sensor_msgs.msg import Image, CameraInfo
 from geometry_msgs.msg import PoseStamped
 from cv_bridge import CvBridge, CvBridgeError
 
+from sensor_msgs import point_cloud2
+from sensor_msgs.msg import PointCloud2, PointField
+from std_msgs.msg import Header
+
+from tf2_sensor_msgs.tf2_sensor_msgs import do_transform_cloud
+import tf2_ros
+
+
 class image_projection:
     camera_model = None
     image_depth_ros = None
@@ -34,7 +42,7 @@ class image_projection:
         self.camera_info_sub = rospy.Subscriber('/thorvald_001/kinect2_front_camera/hd/camera_info', 
             CameraInfo, self.camera_info_callback)
 
-        self.object_location_pub = rospy.Publisher('/thorvald_001/object_location', PoseStamped, queue_size=10)
+        self.pc2_pub = rospy.Publisher('/thorvald_001/grape_point_cloud', PointCloud2, queue_size=10)
 
         rospy.Subscriber("/thorvald_001/kinect2_front_camera/hd/image_color_rect",
             Image, self.image_color_callback)
@@ -43,6 +51,9 @@ class image_projection:
             Image, self.image_depth_callback)
 
         self.tf_listener = tf.TransformListener()
+        
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf2_listener = tf2_ros.TransformListener(self.tf_buffer)
 
     def camera_info_callback(self, data):
         self.camera_model = image_geometry.PinholeCameraModel()
@@ -81,6 +92,7 @@ class image_projection:
         area = [] #np.empty(len(contours))
         centroid = [] #np.empty((len(contours),2))
         drawing_ext = np.zeros((mask1.shape[0], mask1.shape[1], 3), dtype=np.uint8)
+        points = []
 
         for i, c in enumerate(contours):
             a = cv2.contourArea(c)
@@ -95,68 +107,58 @@ class image_projection:
                 color = (255,0,150) # purple
                 # only draw centroid for larger areas
                 drawing_ext = cv2.circle(drawing_ext, (cx, cy), 3, (255,255,0), 2)
+
+                # above we have image coords (just x,y) need to find z then
+                # need to go from image > camera > map
+
+                # "map" from color to depth image
+                depth_coords = (image_depth.shape[0]/2 + (cy - image_color.shape[0]/2)*self.color2depth_aspect, 
+                    image_depth.shape[1]/2 + (cx - image_color.shape[1]/2)*self.color2depth_aspect)
+                # get the depth reading at the centroid location
+                depth_value = image_depth[int(depth_coords[0]), int(depth_coords[1])] # you might need to do some boundary checking first!
+
+                # calculate object's 3d location in camera coords
+                camera_coords = self.camera_model.projectPixelTo3dRay((cx, cy)) #project the image coords (x,y) into 3D ray in camera coords 
+                camera_coords = [x/camera_coords[2] for x in camera_coords] # adjust the resulting vector so that z = 1
+                camera_coords = [x*depth_value for x in camera_coords] # multiply the vector by depth
+                
+                points.append([camera_coords[0], camera_coords[1], camera_coords[2]])
+
             else:
                 color = (0,255,255) # yellow
 
             cv2.drawContours(drawing_ext, contours, i, color, 2)
             
+        fields = [PointField('x', 0, PointField.FLOAT32, 1),
+                    PointField('y', 4, PointField.FLOAT32, 1),
+                    PointField('z', 8, PointField.FLOAT32, 1)]
 
+        # either do pc2 = PointCloud2() then fill in the fields manually 
+        # or use Tim Field's point_cloud2.create_cloud() which returns a PointCloud2 obj
+        header = Header()
+        header.stamp = rospy.Time.now()
+        header.frame_id = "thorvald_001/kinect2_front_rgb_optical_frame" # this is what space/frame the points are defined in reference to. ie. robot vs map
+        pc2 = point_cloud2.create_cloud(header, fields, points)
+
+        # this is now a point cloud in camera coords - now let's transform to map
+
+        # transform
+        #points_map = self.tf_listener.transformPointCloud('map', pc2)
+        # not working for a PointCloud2? Need PCL?
+        transform = self.tf_buffer.lookup_transform('map', data.header.frame_id, header.stamp,rospy.Duration(1.0))
+        cloud_out = do_transform_cloud(pc2, transform)
+
+        # publish so we can see in rviz
+        self.pc2_pub.publish(cloud_out)
+
+        print("Number of points: ", len(points))
+        print("Points: ", points)
+        
+
+        # show contours and centres 
         cv2.imshow('Contours ext', drawing_ext)
         cv2.waitKey(1)
         
-        
-        # calculate the y,x centroid
-        image_coords = (M["m01"] / M["m00"], M["m10"] / M["m00"])
-        # "map" from color to depth image
-        depth_coords = (image_depth.shape[0]/2 + (image_coords[0] - image_color.shape[0]/2)*self.color2depth_aspect, 
-            image_depth.shape[1]/2 + (image_coords[1] - image_color.shape[1]/2)*self.color2depth_aspect)
-        # get the depth reading at the centroid location
-        depth_value = image_depth[int(depth_coords[0]), int(depth_coords[1])] # you might need to do some boundary checking first!
-
-        print('image coords: ', image_coords)
-        print('depth coords: ', depth_coords)
-        print('depth value: ', depth_value)
-
-
-        # calculate object's 3d location in camera coords
-        camera_coords = self.camera_model.projectPixelTo3dRay((image_coords[1], image_coords[0])) #project the image coords (x,y) into 3D ray in camera coords 
-        camera_coords = [x/camera_coords[2] for x in camera_coords] # adjust the resulting vector so that z = 1
-        camera_coords = [x*depth_value for x in camera_coords] # multiply the vector by depth
-
-        print('camera coords: ', camera_coords)
-
-        #define a point in camera coordinates
-        object_location = PoseStamped()
-        object_location.header.frame_id = "thorvald_001/kinect2_front_rgb_optical_frame"
-        object_location.pose.orientation.w = 1.0
-        object_location.pose.position.x = camera_coords[0]
-        object_location.pose.position.y = camera_coords[1]
-        object_location.pose.position.z = camera_coords[2]
-
-        # publish so we can see that in rviz
-        self.object_location_pub.publish(object_location)
-        
-
-        # print out the coordinates in the map frame
-        p_camera = self.tf_listener.transformPose('map', object_location)
-
-        print('map coords: ', p_camera.pose.position)
-        print('')
-
-
-        if self.visualisation:
-            # draw circles
-            cv2.circle(image_color, (int(image_coords[1]), int(image_coords[0])), 10, 255, -1)
-            cv2.circle(image_depth, (int(depth_coords[1]), int(depth_coords[0])), 5, 255, -1)
-
-            #resize and adjust for visualisation
-            image_color = cv2.resize(image_color, (0,0), fx=0.5, fy=0.5)
-            image_depth *= 1.0/10.0 # scale for visualisation (max range 10.0 m)
-
-            cv2.imshow("image depth", image_depth)
-            cv2.imshow("image color", image_color)
-            cv2.waitKey(1)
-
 def main(args):
     '''Initializes and cleanup ros node'''
     rospy.init_node('image_projection', anonymous=True)
