@@ -37,9 +37,9 @@ class PointCloudTest:
             points = []
             
             for i in range(100):
-                x = rng.randrange(-10,10)
-                y = rng.randrange(-10,10)
-                z = rng.randrange(0,2)
+                x = rng.uniform(-10.0,10.0)
+                y = rng.uniform(-10.0,10.0)
+                z = rng.uniform(0.0,2.0)
                         
                 points.append([x,y,z])
 
