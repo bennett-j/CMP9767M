@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 # Python libs
+from cmath import sqrt
 import sys, time
 
 # OpenCV
@@ -64,6 +65,8 @@ class image_projection:
         self.tfBuffer = tf2_ros.Buffer()
         self.tfListener = tf2_ros.TransformListener(self.tfBuffer)
         # Once the listener is created, it starts receiving tf2 transformations over the wire, and buffers them for up to 10 seconds.
+
+        self.bunch_centroids = []
                 
     def camera_info_callback(self, data):
         self.camera_model = image_geometry.PinholeCameraModel()
@@ -197,27 +200,53 @@ class image_projection:
             for cpnt in row:
                 p_out = t_kdl * PyKDL.Vector(cpnt[0], cpnt[1], cpnt[2])
                 #print(p[3:])
-                corners_map.append((p_out[0], p_out[1], p_out[2])+tuple(p[3:]))
+                corners_map.append((p_out[0], p_out[1], p_out[2])) #+tuple(p[3:])
+
+
+        for i, point in enumerate(points_map):
+            corner = corners_map[4*i]
+
+            # approximate size of bunch as radius from centre to one corner
+            size_radius = math.sqrt((point[0] - corner[0])**2
+                                    + (point[1] - corner[1])**2
+                                    + (point[2] - corner[2])**2)
+            
+            # initialise query append to true (add unless proven not to)
+            q_append = True
+            # loop through all saved bunches, if current point isn't within distance of an existing one, append to list.
+            for bunch in self.bunch_centroids:
+                separation = math.sqrt((point[0]-bunch[0])**2
+                                       + (point[1]-bunch[1])**2
+                                       + (point[2]-bunch[2])**2)
+                
+                # if bunch is close assume it's the same one and no reason to continue checking so break
+                if separation < (2*size_radius):
+                    q_append = False
+                    break
+            
+            if q_append:
+                self.bunch_centroids.append(point)
+
 
         header.frame_id = 'map'    
         pc2_map = point_cloud2.create_cloud(header, fields, points_map)
 
-        pc2_corners_map = point_cloud2.create_cloud(header, fields, corners_map)
+        pc2_bunches_map = point_cloud2.create_cloud(header, fields, self.bunch_centroids)
 
         # publish so we can see in rviz
         # self.pc2_pub.publish(cloud_out)
         self.pc2_pub.publish(pc2_map)
 
-        self.corners_pub.publish(pc2_corners_map)
+        self.corners_pub.publish(pc2_bunches_map)
 
         print("Number of points: ", len(points))
-        print("Points: ", points)
+        print("Number of bunches: ", len(self.bunch_centroids))
         
        
 
         # show contours and centres 
-        cv2.imshow('Contours ext', drawing_ext)
-        cv2.waitKey(1)
+        # cv2.imshow('Contours ext', drawing_ext)
+        # cv2.waitKey(1)
 
     def pixel_to_camera(self, point, depth_value=None):
         """Convert an x,y point in the image to a 3D point in the camera frame using the depth image.
@@ -241,7 +270,7 @@ class image_projection:
                 # if the pixel has value nan (that's how the camera outputs it) then return
                 if math.isnan(depth_value):
                     # TODO: in perfect world this shouldn't happen - are the cameras misaligned - is the transform wrong - are we sensing grape where there isn't?
-                    print("Depth for ", point, " isnan")
+                    #print("Depth for ", point, " isnan")
                     return
             else:
                 return
