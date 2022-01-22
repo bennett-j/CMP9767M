@@ -52,6 +52,8 @@ class image_projection:
 
         self.pc2_pub = rospy.Publisher('/thorvald_001/grape_point_cloud', PointCloud2, queue_size=10)
 
+        self.corners_pub = rospy.Publisher('/thorvald_001/grape_corners_point_cloud', PointCloud2, queue_size=10)
+
         rospy.Subscriber("/thorvald_001/kinect2_front_camera/hd/image_color_rect",
             Image, self.image_color_callback)
 
@@ -100,6 +102,7 @@ class image_projection:
         centroid = [] #np.empty((len(contours),2))
         drawing_ext = np.zeros((mask1.shape[0], mask1.shape[1], 3), dtype=np.uint8)
         points = []
+        corners = []
 
         for i, c in enumerate(contours):
             a = cv2.contourArea(c)
@@ -115,12 +118,20 @@ class image_projection:
                 # only draw centroid for larger areas
                 drawing_ext = cv2.circle(drawing_ext, (cx, cy), 3, (255,255,0), 2)
 
+                # bounding box
+                x,y,w,h = cv2.boundingRect(c)
+                drawing_ext = cv2.rectangle(drawing_ext,(x,y),(x+w,y+h),(0,255,0),2)
+                # index 0  1
+                #       2  3                
+                #corners.append(((x,y), (x+w,y), (x,y+h), (x+w,y+h)))
+                pts = [(x,y), (x+w,y), (x,y+h), (x+w,y+h)]
+
                 # above we have image coords (just x,y) need to find z then
                 # need to go from image > camera > map
 
                 # "map" from color to depth image
                 depth_coords = (image_depth.shape[0]/2 + (cy - image_color.shape[0]/2)*self.color2depth_aspect, 
-                    image_depth.shape[1]/2 + (cx - image_color.shape[1]/2)*self.color2depth_aspect)
+                                image_depth.shape[1]/2 + (cx - image_color.shape[1]/2)*self.color2depth_aspect)
                 # get the depth reading at the centroid location
                 depth_value = image_depth[int(depth_coords[0]), int(depth_coords[1])] # you might need to do some boundary checking first!
 
@@ -130,6 +141,24 @@ class image_projection:
                 camera_coords = [x*depth_value for x in camera_coords] # multiply the vector by depth
                 
                 points.append([camera_coords[0], camera_coords[1], camera_coords[2]])
+
+                tmp=[]
+                for pt in pts:
+                    # "map" from color to depth image
+                    depth_coords = (image_depth.shape[0]/2 + (pt[1] - image_color.shape[0]/2)*self.color2depth_aspect, 
+                                    image_depth.shape[1]/2 + (pt[0] - image_color.shape[1]/2)*self.color2depth_aspect)
+                    # get the depth reading at the centroid location
+                    #depth_value = image_depth[int(depth_coords[0]), int(depth_coords[1])] # you might need to do some boundary checking first!
+                    ### use depth value from centroid
+
+                    # calculate object's 3d location in camera coords
+                    camera_coords = self.camera_model.projectPixelTo3dRay((pt[0], pt[1])) #project the image coords (x,y) into 3D ray in camera coords 
+                    camera_coords = [x/camera_coords[2] for x in camera_coords] # adjust the resulting vector so that z = 1
+                    camera_coords = [x*depth_value for x in camera_coords] # multiply the vector by depth
+
+                    tmp.append([camera_coords[0], camera_coords[1], camera_coords[2]])
+
+                corners.append(tmp)
 
             else:
                 color = (0,255,255) # yellow
@@ -172,12 +201,23 @@ class image_projection:
             #print(p[3:])
             points_map.append((p_out[0], p_out[1], p_out[2])+tuple(p[3:]))
 
+        corners_map = []
+        for row in corners:
+            for cpnt in row:
+                p_out = t_kdl * PyKDL.Vector(cpnt[0], cpnt[1], cpnt[2])
+                #print(p[3:])
+                corners_map.append((p_out[0], p_out[1], p_out[2])+tuple(p[3:]))
+
         header.frame_id = 'map'    
         pc2_map = point_cloud2.create_cloud(header, fields, points_map)
+
+        pc2_corners_map = point_cloud2.create_cloud(header, fields, corners_map)
 
         # publish so we can see in rviz
         # self.pc2_pub.publish(cloud_out)
         self.pc2_pub.publish(pc2_map)
+
+        self.corners_pub.publish(pc2_corners_map)
 
         print("Number of points: ", len(points))
         print("Points: ", points)
