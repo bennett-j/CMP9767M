@@ -29,6 +29,7 @@ from tf2_sensor_msgs.tf2_sensor_msgs import do_transform_cloud, transform_to_kdl
 import tf2_ros
 
 import PyKDL
+import math
 
 
 
@@ -39,7 +40,7 @@ class image_projection:
 
     visualisation = True
     # aspect ration between color and depth cameras
-    # calculated as (color_horizontal_FOV/color_width) / (depth_horizontal_FOV/depth_width) from the kinectv2 urdf file
+    # calculated as (color_horizontal_FOV/color_width) / (depth_horizontal_FOV/depth_width) from the kinectv2 urdf file - makes sense and numbers verified
     # (84.1/1920) / (70.0/512)
     color2depth_aspect = (84.1/1920) / (70.0/512)
 
@@ -80,10 +81,10 @@ class image_projection:
         if self.image_depth_ros is None:
             return
 
-        # covert images to open_cv
+        # covert images to open_cv format
         try:
-            image_color = self.bridge.imgmsg_to_cv2(data, "bgr8")
-            image_depth = self.bridge.imgmsg_to_cv2(self.image_depth_ros, "32FC1")
+            self.colour_img = self.bridge.imgmsg_to_cv2(data, "bgr8")
+            self.depth_img = self.bridge.imgmsg_to_cv2(self.image_depth_ros, "32FC1")
         except CvBridgeError as e:
             print(e)
 
@@ -91,6 +92,9 @@ class image_projection:
         # detect a red blob in the color image
         #image_mask = cv2.inRange(image_color, (0, 0, 80), (20, 20, 255))
 
+        image_color = self.colour_img
+        
+        
         blur = cv2.GaussianBlur(image_color,(5,5),0)
         hsv = cv2.cvtColor(blur, cv2.COLOR_BGR2HSV)
         mask1 = cv2.inRange(hsv, (75, 0, 25), (150, 150, 75))
@@ -129,36 +133,23 @@ class image_projection:
                 # above we have image coords (just x,y) need to find z then
                 # need to go from image > camera > map
 
-                # "map" from color to depth image
-                depth_coords = (image_depth.shape[0]/2 + (cy - image_color.shape[0]/2)*self.color2depth_aspect, 
-                                image_depth.shape[1]/2 + (cx - image_color.shape[1]/2)*self.color2depth_aspect)
-                # get the depth reading at the centroid location
-                depth_value = image_depth[int(depth_coords[0]), int(depth_coords[1])] # you might need to do some boundary checking first!
+                # Convert centroid as image pixel to 3D point in camera frame
+                centroid_cam = self.pixel_to_camera((cx,cy))                
+                if centroid_cam is not None:
+                    points.append(centroid_cam)
 
-                # calculate object's 3d location in camera coords
-                camera_coords = self.camera_model.projectPixelTo3dRay((cx, cy)) #project the image coords (x,y) into 3D ray in camera coords 
-                camera_coords = [x/camera_coords[2] for x in camera_coords] # adjust the resulting vector so that z = 1
-                camera_coords = [x*depth_value for x in camera_coords] # multiply the vector by depth
-                
-                points.append([camera_coords[0], camera_coords[1], camera_coords[2]])
+                    # Convert each corner point (in img frame) to 3D point in camera frame, taking depth value of centroid
+                    # TODO: list comprehension?
+                    tmp=[]
+                    for pt in pts:
+                        b = self.pixel_to_camera(pt, depth_value=centroid_cam[2])
+                        tmp.append(b)
 
-                tmp=[]
-                for pt in pts:
-                    # "map" from color to depth image
-                    depth_coords = (image_depth.shape[0]/2 + (pt[1] - image_color.shape[0]/2)*self.color2depth_aspect, 
-                                    image_depth.shape[1]/2 + (pt[0] - image_color.shape[1]/2)*self.color2depth_aspect)
-                    # get the depth reading at the centroid location
-                    #depth_value = image_depth[int(depth_coords[0]), int(depth_coords[1])] # you might need to do some boundary checking first!
-                    ### use depth value from centroid
+                    corners.append(tmp)
 
-                    # calculate object's 3d location in camera coords
-                    camera_coords = self.camera_model.projectPixelTo3dRay((pt[0], pt[1])) #project the image coords (x,y) into 3D ray in camera coords 
-                    camera_coords = [x/camera_coords[2] for x in camera_coords] # adjust the resulting vector so that z = 1
-                    camera_coords = [x*depth_value for x in camera_coords] # multiply the vector by depth
-
-                    tmp.append([camera_coords[0], camera_coords[1], camera_coords[2]])
-
-                corners.append(tmp)
+                else:
+                    # if point not in depth img we won't show it so just continue
+                    continue
 
             else:
                 color = (0,255,255) # yellow
@@ -199,7 +190,7 @@ class image_projection:
         for p in points:
             p_out = t_kdl * PyKDL.Vector(p[0], p[1], p[2])
             #print(p[3:])
-            points_map.append((p_out[0], p_out[1], p_out[2])+tuple(p[3:]))
+            points_map.append((p_out[0], p_out[1], p_out[2])) #+tuple(p[3:])
 
         corners_map = []
         for row in corners:
@@ -227,7 +218,44 @@ class image_projection:
         # show contours and centres 
         cv2.imshow('Contours ext', drawing_ext)
         cv2.waitKey(1)
+
+    def pixel_to_camera(self, point, depth_value=None):
+        """Convert an x,y point in the image to a 3D point in the camera frame using the depth image.
         
+        @param point: a tuple (x,y) of pixel location to be
+        @param depth_value: if defined the value will be use, else it will be extracted from the depth camera
+        @return: the point (x,y,z) in camera coordinates
+        """
+
+        if depth_value is None:
+            # Map(ping) from pixel coord in colour img to pixel coord in depth img
+            depth_coords = (self.depth_img.shape[0]/2 + (point[1] - self.colour_img.shape[0]/2)*self.color2depth_aspect,    # y
+                            self.depth_img.shape[1]/2 + (point[0] - self.colour_img.shape[1]/2)*self.color2depth_aspect)    # x
+        
+            # 1080 x 1920 scales to 345 x 614 which is wider than the depth image at 424 x 512
+            # Therefore only attempt point transform if depth value available
+            if depth_coords[1] >= 0 and depth_coords[1] < self.depth_img.shape[1]:
+                # Extract depth at the found coordinate
+                depth_value = self.depth_img[int(depth_coords[0]), int(depth_coords[1])] 
+
+                # if the pixel has value nan (that's how the camera outputs it) then return
+                if math.isnan(depth_value):
+                    # TODO: in perfect world this shouldn't happen - are the cameras misaligned - is the transform wrong - are we sensing grape where there isn't?
+                    print("Depth for ", point, " isnan")
+                    return
+            else:
+                return
+
+        # Calculate point in camera coords
+        # Project point (x,y) to 3D ray - returns unit vector at camera pinhole in direction of pixel
+        camera_coords = self.camera_model.projectPixelTo3dRay((point[0], point[1]))
+        # Scale vector so z=1 (metre) then multiply by depth value
+        camera_coords = [x/camera_coords[2] for x in camera_coords]
+        camera_coords = [x*depth_value for x in camera_coords]
+
+        return tuple(camera_coords)
+    
+
 def main(args):
     '''Initializes and cleanup ros node'''
     rospy.init_node('image_projection', anonymous=True)
