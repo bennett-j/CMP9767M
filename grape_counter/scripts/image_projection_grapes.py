@@ -91,6 +91,10 @@ class image_projection:
         except CvBridgeError as e:
             print(e)
 
+        # checking the stamps of the two images are close - they are.
+        # print('Colour header stamp: ', data.header.stamp)
+        # print('Depth header stamp: ', self.image_depth_ros.header.stamp)
+
         #image_color = cv2.resize(image_color, None, fx=0.5, fy=0.5, interpolation = cv2.INTER_CUBIC)
         # detect a red blob in the color image
         #image_mask = cv2.inRange(image_color, (0, 0, 80), (20, 20, 255))
@@ -245,8 +249,8 @@ class image_projection:
        
 
         # show contours and centres 
-        # cv2.imshow('Contours ext', drawing_ext)
-        # cv2.waitKey(1)
+        cv2.imshow('Contours ext', drawing_ext)
+        cv2.waitKey(1)
 
     def pixel_to_camera(self, point, depth_value=None):
         """Convert an x,y point in the image to a 3D point in the camera frame using the depth image.
