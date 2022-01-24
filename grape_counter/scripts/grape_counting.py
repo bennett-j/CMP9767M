@@ -3,6 +3,7 @@
 # Python libs
 from cmath import sqrt
 import sys, time
+from tokenize import String
 
 # OpenCV
 import cv2
@@ -20,7 +21,7 @@ from cv_bridge import CvBridge, CvBridgeError
 
 from sensor_msgs import point_cloud2
 from sensor_msgs.msg import PointCloud2, PointField
-from std_msgs.msg import Header
+from std_msgs.msg import Header, String
 
 from tf2_sensor_msgs.tf2_sensor_msgs import do_transform_cloud, transform_to_kdl
 
@@ -62,6 +63,8 @@ class image_projection:
         rospy.Subscriber("/thorvald_001/kinect2_right_sensor/sd/image_depth_rect",
             Image, self.image_depth_callback)
 
+        rospy.Subscriber("/process_img", String, self.do_image_proc)
+
         self.tfBuffer = tf2_ros.Buffer()
         self.tfListener = tf2_ros.TransformListener(self.tfBuffer)
         # Once the listener is created, it starts receiving tf2 transformations over the wire, and buffers them for up to 10 seconds.
@@ -77,6 +80,9 @@ class image_projection:
         self.image_depth_ros = data
 
     def image_color_callback(self, data):
+        self.colour_img_ros = data
+        
+    def do_image_proc(self, msg):
         # wait for camera_model and depth image to arrive
         if self.camera_model is None:
             return
@@ -84,16 +90,20 @@ class image_projection:
         if self.image_depth_ros is None:
             return
 
+        if self.image_depth_ros is None:
+            return
+
         # covert images to open_cv format
         try:
-            self.colour_img = self.bridge.imgmsg_to_cv2(data, "bgr8")
+            self.colour_img = self.bridge.imgmsg_to_cv2(self.colour_img_ros, "bgr8")
             self.depth_img = self.bridge.imgmsg_to_cv2(self.image_depth_ros, "32FC1")
         except CvBridgeError as e:
             print(e)
 
         # checking the stamps of the two images are close - they are.
-        # print('Colour header stamp: ', data.header.stamp)
-        # print('Depth header stamp: ', self.image_depth_ros.header.stamp)
+        print('Colour header stamp: ', self.colour_img_ros.header.stamp)
+        print('Depth header stamp: ', self.image_depth_ros.header.stamp)
+        #print('Time(0): ', rospy.Time().now())
 
         #image_color = cv2.resize(image_color, None, fx=0.5, fy=0.5, interpolation = cv2.INTER_CUBIC)
         # detect a red blob in the color image
@@ -182,7 +192,7 @@ class image_projection:
         
         try:
             # will data.header.stamp use the time the image arrived?
-            transform = self.tfBuffer.lookup_transform('map', "thorvald_001/kinect2_right_rgb_optical_frame", data.header.stamp) #, rospy.Duration(1.0)
+            transform = self.tfBuffer.lookup_transform('map', "thorvald_001/kinect2_right_rgb_optical_frame", self.colour_img_ros.header.stamp, rospy.Duration(1.0)) #
         except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
            print(e)
            return
@@ -224,7 +234,7 @@ class image_projection:
                                        + (point[2]-bunch[2])**2)
                 
                 # if bunch is close assume it's the same one and no reason to continue checking so break
-                if separation < (0.4):
+                if separation < (0.25):
                     q_append = False
                     break
             
