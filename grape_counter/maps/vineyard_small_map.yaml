@@ -1,0 +1,282 @@
+- meta:
+    map: test
+    node: Home
+    pointset: test
+    published_at: 1970-01-01 00:18:59.755000+00:00
+    timestamp: 1139755000000
+  node:
+    edges:
+    - action: move_base
+      edge_id: Home_WP6
+      inflation_radius: 0.0
+      map_2d: test
+      node: WP6
+      recovery_behaviours_config: ''
+      top_vel: 0.55
+    localise_by_topic: ''
+    map: test
+    name: Home
+    pointset: test
+    pose:
+      orientation:
+        w: 1.0
+        x: 0.0
+        y: 0.0
+        z: 0.0
+      position:
+        x: -10.5
+        y: 0.0
+        z: 0.0
+    verts:
+    - x: 0.692909657955
+      y: 0.287012577057
+    - x: 0.287012577057
+      y: 0.692909657955
+    - x: -0.287012577057
+      y: 0.692909657955
+    - x: -0.692909657955
+      y: 0.287012577057
+    - x: -0.692909657955
+      y: -0.287012577057
+    - x: -0.287012577057
+      y: -0.692909657955
+    - x: 0.287012577057
+      y: -0.692909657955
+    - x: 0.692909657955
+      y: -0.287012577057
+    xy_goal_tolerance: 0.3
+    yaw_goal_tolerance: 0.1
+- meta:
+    map: test
+    node: WP6
+    pointset: test
+    published_at: 1970-01-01 00:18:59.760000+00:00
+    timestamp: 1139760000000
+  node:
+    edges:
+    - action: move_base
+      edge_id: WP6_Home
+      inflation_radius: 0.0
+      map_2d: test
+      node: Home
+      recovery_behaviours_config: ''
+      top_vel: 0.55
+    - action: move_base
+      edge_id: WP6_WP7
+      inflation_radius: 0.0
+      map_2d: test
+      node: WP7
+      recovery_behaviours_config: ''
+      top_vel: 0.55
+    - action: move_base
+      edge_id: WP6_WP8
+      inflation_radius: 0.0
+      map_2d: test
+      node: WP8
+      recovery_behaviours_config: ''
+      top_vel: 0.55
+    - action: move_base
+      edge_id: WP6_WP8_000
+      inflation_radius: 0.0
+      map_2d: test
+      node: WP8
+      recovery_behaviours_config: ''
+      top_vel: 0.55
+    localise_by_topic: ''
+    map: test
+    name: WP6
+    pointset: test
+    pose:
+      orientation:
+        w: 1.0
+        x: 0.0
+        y: 0.0
+        z: 0.0
+      position:
+        x: -10.5
+        y: -5.0
+        z: 0.0
+    verts:
+    - x: 0.692909657955
+      y: 0.287012577057
+    - x: 0.287012577057
+      y: 0.692909657955
+    - x: -0.287012577057
+      y: 0.692909657955
+    - x: -0.692909657955
+      y: 0.287012577057
+    - x: -0.692909657955
+      y: -0.287012577057
+    - x: -0.287012577057
+      y: -0.692909657955
+    - x: 0.287012577057
+      y: -0.692909657955
+    - x: 0.692909657955
+      y: -0.287012577057
+    xy_goal_tolerance: 0.3
+    yaw_goal_tolerance: 0.1
+- meta:
+    map: test
+    node: WP7
+    pointset: test
+    published_at: 1970-01-01 00:18:59.765000+00:00
+    timestamp: 1139765000000
+  node:
+    edges:
+    - action: move_base
+      edge_id: WP7_WP6
+      inflation_radius: 0.0
+      map_2d: test
+      node: WP6
+      recovery_behaviours_config: ''
+      top_vel: 0.55
+    - action: move_base
+      edge_id: WP7_WP9
+      inflation_radius: 0.0
+      map_2d: test
+      node: WP9
+      recovery_behaviours_config: ''
+      top_vel: 0.55
+    localise_by_topic: ''
+    map: test
+    name: WP7
+    pointset: test
+    pose:
+      orientation:
+        w: 1.0
+        x: 0.0
+        y: 0.0
+        z: 0.0
+      position:
+        x: -10.5
+        y: -10.0
+        z: 0.0
+    verts:
+    - x: 0.692909657955
+      y: 0.287012577057
+    - x: 0.287012577057
+      y: 0.692909657955
+    - x: -0.287012577057
+      y: 0.692909657955
+    - x: -0.692909657955
+      y: 0.287012577057
+    - x: -0.692909657955
+      y: -0.287012577057
+    - x: -0.287012577057
+      y: -0.692909657955
+    - x: 0.287012577057
+      y: -0.692909657955
+    - x: 0.692909657955
+      y: -0.287012577057
+    xy_goal_tolerance: 0.3
+    yaw_goal_tolerance: 0.1
+- meta:
+    map: test
+    node: WP8
+    pointset: test
+    published_at: 1970-01-01 00:18:59.765000+00:00
+    timestamp: 1139765000000
+  node:
+    edges:
+    - action: move_base
+      edge_id: WP8_WP6
+      inflation_radius: 0.0
+      map_2d: test
+      node: WP6
+      recovery_behaviours_config: ''
+      top_vel: 0.55
+    - action: move_base
+      edge_id: WP8_WP9
+      inflation_radius: 0.0
+      map_2d: test
+      node: WP9
+      recovery_behaviours_config: ''
+      top_vel: 0.55
+    localise_by_topic: ''
+    map: test
+    name: WP8
+    pointset: test
+    pose:
+      orientation:
+        w: 0.0
+        x: 0.0
+        y: 0.0
+        z: 1.0
+      position:
+        x: 10.5
+        y: -5.0
+        z: 0.0
+    verts:
+    - x: 0.692909657955
+      y: 0.287012577057
+    - x: 0.287012577057
+      y: 0.692909657955
+    - x: -0.287012577057
+      y: 0.692909657955
+    - x: -0.692909657955
+      y: 0.287012577057
+    - x: -0.692909657955
+      y: -0.287012577057
+    - x: -0.287012577057
+      y: -0.692909657955
+    - x: 0.287012577057
+      y: -0.692909657955
+    - x: 0.692909657955
+      y: -0.287012577057
+    xy_goal_tolerance: 0.3
+    yaw_goal_tolerance: 0.1
+- meta:
+    map: test
+    node: WP9
+    pointset: test
+    published_at: 1970-01-01 00:22:01.920000+00:00
+    timestamp: 1321920000000
+  node:
+    edges:
+    - action: move_base
+      edge_id: WP9_WP8
+      inflation_radius: 0.0
+      map_2d: test
+      node: WP8
+      recovery_behaviours_config: ''
+      top_vel: 0.55
+    - action: move_base
+      edge_id: WP9_WP7
+      inflation_radius: 0.0
+      map_2d: test
+      node: WP7
+      recovery_behaviours_config: ''
+      top_vel: 0.55
+    localise_by_topic: ''
+    map: test
+    name: WP9
+    pointset: test
+    pose:
+      orientation:
+        w: 0.0
+        x: 0.0
+        y: 0.0
+        z: 1.0
+      position:
+        x: 10.5
+        y: -10.0
+        z: 0.0
+    verts:
+    - x: 0.692909657955
+      y: 0.287012577057
+    - x: 0.287012577057
+      y: 0.692909657955
+    - x: -0.287012577057
+      y: 0.692909657955
+    - x: -0.692909657955
+      y: 0.287012577057
+    - x: -0.692909657955
+      y: -0.287012577057
+    - x: -0.287012577057
+      y: -0.692909657955
+    - x: 0.287012577057
+      y: -0.692909657955
+    - x: 0.692909657955
+      y: -0.287012577057
+    xy_goal_tolerance: 0.3
+    yaw_goal_tolerance: 0.1
