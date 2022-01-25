@@ -63,11 +63,11 @@ class CountingManager:
 
         print("status callback: ", msg.data)
 
-        if self.status == 'start':
+        if self.status == 'count':
             self.do_counting()
 
     def do_counting(self):
-        while self.status == 'start':
+        while self.status == 'count':
             # enter if statement when specified distance has been travelled
             if self.distance > self.spacing:
                 # come to a stop
