@@ -50,8 +50,14 @@ class Navigator:
             # create a goal message and set target from mission list
             goal = GotoNodeGoal()
             goal.target = leg["goal"]
+            goal.no_orientation = False
             
-            
+            # only attempt looking at next leg if we're not on the final leg
+            if not (i == len(mission)-1):
+                if mission[i+1]["action"] == SetModeRequest.TRAVEL:
+                    # if the action of the next leg is travel 
+                    # then don't worry about orientation at goal
+                    goal.no_orientation = True
             
             print(goal.target)
 
@@ -70,12 +76,13 @@ class Navigator:
            
             # send goal and wait for it to finish
             self.client.send_goal(goal)
-            status = self.client.wait_for_result() # wait until the action is complete
+            status = self.client.wait_for_result()
             
             # get result, log and continue to next leg
             result = self.client.get_result()
-            rospy.loginfo("status is %s", status)
+            
             rospy.loginfo("result is %s", result)
+            result.
 
 
 if __name__=="__main__":
