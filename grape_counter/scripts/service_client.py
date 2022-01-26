@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import rospy
-from grape_counter.srv import *
+from grape_counter.srv import SetMode
 
 
 def set_mode_client(mode):
