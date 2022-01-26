@@ -34,8 +34,6 @@ import PyKDL
 import math
 
 
-
-
 class image_projection:
     camera_model = None
     image_depth_ros = None
