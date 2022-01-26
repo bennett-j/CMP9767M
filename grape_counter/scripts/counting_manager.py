@@ -29,12 +29,15 @@ class CountingManager:
         # 
         self.cmd_vel_pub = rospy.Publisher('/thorvald_001/teleop_joy/cmd_vel', Twist, queue_size=1)
         self.stationary_msg = Twist()
-        self.cmd_vel_rate = rospy.Rate(10.0) #Hz
+        
         self.curr_vel = 0
         self.stationary_thresh = 0.01 # m/s
 
         #
         self.img_pub = rospy.Publisher('/process_img', String, queue_size=1)
+
+        # rate for publishing cmd_vel and loop rate
+        self.rate = rospy.Rate(10.0) #Hz
 
 
     def odom_callback(self, odom_msg):
@@ -47,12 +50,12 @@ class CountingManager:
             self.distance = sqrt((odom_msg.pose.pose.position.x - self.odom_ref.x) ** 2
                                 +(odom_msg.pose.pose.position.y - self.odom_ref.y) ** 2)
 
-            print("d: ", self.distance)
+            #print("d: ", self.distance)
 
             # calculate current velocity
             self.curr_vel = sqrt(odom_msg.twist.twist.linear.x ** 2 
                                + odom_msg.twist.twist.linear.y ** 2)
-            print("v: ", self.curr_vel)
+            #print("v: ", self.curr_vel)
 
     def reset_odom(self):
         self.odom_ref = None
@@ -68,17 +71,18 @@ class CountingManager:
 
     def do_counting(self):
         while self.status == 'count':
+            print('status: ', self.status)
             # enter if statement when specified distance has been travelled
             if self.distance > self.spacing:
                 # come to a stop
                 while self.curr_vel > self.stationary_thresh:
                     self.cmd_vel_pub.publish(self.stationary_msg)
-                    self.cmd_vel_rate.sleep()
+                    self.rate.sleep()
 
                 # sleep just to let everything settle (5*10Hz = 0.5s)
                 for i in range(5):
                     self.cmd_vel_pub.publish(self.stationary_msg)
-                    self.cmd_vel_rate.sleep()
+                    self.rate.sleep()
                                     
                 # cmd to do an img
                 self.img_pub.publish('process_image')
@@ -90,6 +94,7 @@ class CountingManager:
                 # by not sending the stationary msg to cmd_vel thorvald will start moving again
 
             # put a sleep here?
+            self.rate.sleep()
 
 
 if __name__ == '__main__':

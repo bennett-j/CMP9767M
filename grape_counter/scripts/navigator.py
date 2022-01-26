@@ -26,7 +26,7 @@ class Navigator:
     def __init__(self):
         #rospy.init_node('topological_navigation_client')
 
-        self.count_status = rospy.Publisher("/count_status", String, queue_size=5)
+        self.count_status = rospy.Publisher("/count_status", String, queue_size=1)
 
         self.client = actionlib.SimpleActionClient('/thorvald_001/topological_navigation', GotoNodeAction)
         self.client.wait_for_server()
@@ -47,7 +47,8 @@ class Navigator:
                 self.total_count += count
 
             # tell manager node what to do
-            self.count_status.publish(leg["action"])
+            print(String(leg["action"]))
+            self.count_status.publish(String(leg["action"]))
 
             # send goal and wait for it to finish
             self.client.send_goal(goal)
