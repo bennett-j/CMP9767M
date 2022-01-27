@@ -123,8 +123,8 @@ class image_projection:
         blur = cv2.GaussianBlur(image_color,(5,5),0)
         hsv = cv2.cvtColor(blur, cv2.COLOR_BGR2HSV)
         mask1 = cv2.inRange(hsv, (75, 0, 25), (150, 150, 75))
-        kernel_e5 = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(5,5))
-        morphed = cv2.morphologyEx(mask1, cv2.MORPH_CLOSE, kernel_e5)
+        kernel_e7 = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(7,7))
+        morphed = cv2.morphologyEx(mask1, cv2.MORPH_CLOSE, kernel_e7)
 
         _, contours, _ = cv2.findContours(morphed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
         
@@ -136,7 +136,7 @@ class image_projection:
             a = cv2.contourArea(c)
             
             # if M["m00"] == 0: this only occurs when area = 0 so won't get erros if we filter out small areas
-            if a > 100:
+            if a > 500:
                 M = cv2.moments(c)
                 cx = int(M['m10']/M['m00'])
                 cy = int(M['m01']/M['m00'])
@@ -155,10 +155,16 @@ class image_projection:
                 # need to go from image > camera > map
 
                 # convert centroid as image pixel to 3D point in camera frame
-                centroid_cam = self.pixel_to_camera((cx,cy))                
+                centroid_cam = self.pixel_to_camera((cx,cy))
+                      
                 if centroid_cam is not None:
                     # if the centroid pixel is valid, do the following
 
+                    # remove extreme outliers
+                    if centroid_cam[2] < 1 or centroid_cam[2] > 3:
+                        print(centroid_cam[2])   
+                        continue
+                    
                     # we're sensing front of the bunch so estimate true centroid by 
                     # calculating width, assuming revolved shape and adding half the
                     # width to the z value in camera frame.
@@ -190,8 +196,8 @@ class image_projection:
             else:
                 colour = (0,255,255) # yellow
         
-        if self.visualisation:
-            cv2.drawContours(drawing, contours, i, colour, 2)
+            if self.visualisation:
+                cv2.drawContours(drawing, contours, i, colour, 2)
             
            
         # get the transform
@@ -225,16 +231,23 @@ class image_projection:
             
             # initialise query append to true (add unless proven not to)
             q_append = True
-            # loop through all saved bunches, if current point isn't within distance of an existing one, append to list.
-            for bunch in self.bunch_centroids:
-                separation = math.sqrt((point[0]-bunch[0])**2
-                                       + (point[1]-bunch[1])**2
-                                       + (point[2]-bunch[2])**2)
-                
-                # if bunch is close assume it's the same one and no reason to continue checking so break
-                if separation < (0.25):
-                    q_append = False
-                    break
+
+            if point[2] < 0.2:
+                # if point too low don't append
+                q_append = False
+            
+            else:
+                # loop through all saved bunches, if current point isn't within distance of an existing one, append to list.
+                for bunch in self.bunch_centroids:
+                                    
+                    separation = math.sqrt((point[0]-bunch[0])**2
+                                        + (point[1]-bunch[1])**2
+                                        + (point[2]-bunch[2])**2)
+                    
+                    # if bunch is close assume it's the same one and no reason to continue checking so break
+                    if separation < (0.25):
+                        q_append = False
+                        break
             
             if q_append:
                 self.bunch_centroids.append(point)
@@ -270,6 +283,7 @@ class image_projection:
         if self.visualisation:
             # show contours and centres 
             cv2.imshow('Contours ext', cv2.resize(drawing, (0,0), fx=0.5, fy=0.5))
+            #cv2.imshow('Morphed', cv2.resize(morphed, (0,0), fx=0.5, fy=0.5))
             cv2.waitKey(1)
 
     def pixel_to_camera(self, point, depth_value=None):
@@ -326,6 +340,7 @@ def main(args):
     '''Initializes and cleanup ros node'''
     rospy.init_node('image_projection', anonymous=True)
     ic = image_projection()
+    print("Initialised. Waiting for command.")
     try:
         rospy.spin()
     except KeyboardInterrupt:
