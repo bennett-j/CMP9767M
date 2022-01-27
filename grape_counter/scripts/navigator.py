@@ -3,20 +3,17 @@
 # using template of uol_cmp9767m_tutorial/scripts/set_topo_nav_goal.py
 # by gpdas, email: pdasgautham@gmail.com
 
-import queue
-#from urllib import response
+
 import rospy
 import actionlib
 
 from topological_navigation.msg import GotoNodeAction, GotoNodeGoal
 
-from std_msgs.msg import String
+from std_msgs.msg import Int32
 
 from grape_counter.srv import SetMode, SetModeRequest
 
-#from gc_params import Modes
 
-# action travel, count, new_count
 
 mission = (
     {"goal": "Home", "action": SetModeRequest.TRAVEL},
@@ -28,21 +25,27 @@ mission = (
 )
 
 
-
 class Navigator:
     def __init__(self):
-        #rospy.init_node('topological_navigation_client')
-
-        self.count_status = rospy.Publisher("/count_status", String, queue_size=1)
-
-        self.client = actionlib.SimpleActionClient('/thorvald_001/topological_navigation', GotoNodeAction)
-        self.client.wait_for_server()
-
+        
         self.total_count = 0
 
+        # set up action client for sending nav goals
+        self.nav_client = actionlib.SimpleActionClient('/thorvald_001/topological_navigation', GotoNodeAction)
+        self.nav_client.wait_for_server()
+
+        # set up service to send mode to manager node
         rospy.wait_for_service('set_mode')
         self.set_mode_srv = rospy.ServiceProxy('set_mode', SetMode)
-        print("service set up")
+
+        # subscribe to current grape count
+        rospy.Subscriber("/grape_count", Int32, self.update_count)
+
+    
+    def update_count(self, msg):
+        self.total_count = msg.data
+        print("Current count: {}.".format(self.total_count))
+        
 
     def run(self):
         
@@ -59,7 +62,7 @@ class Navigator:
                     # then don't worry about orientation at goal
                     goal.no_orientation = True
             
-            print(goal.target)
+            print("Next waypoint is {} with mode {}.".format(goal.target, leg["action"]))
 
             # if want to start a new count (for a different vine) get and sum curret count before reset
             if leg["action"] == "new_count":
@@ -68,24 +71,23 @@ class Navigator:
                 self.total_count += count
 
             # tell manager node what to do
-            # print(String(leg["action"]))
-            # self.count_status.publish(String(leg["action"]))
-            
             response = self.set_mode_srv(leg["action"])
-            print(response.result)
+            #print(response.result)
            
             # send goal and wait for it to finish
-            self.client.send_goal(goal)
-            status = self.client.wait_for_result()
+            self.nav_client.send_goal(goal)
+            self.nav_client.wait_for_result()
             
             # get result, log and continue to next leg
-            result = self.client.get_result()
-            
-            rospy.loginfo("result is %s", result)
-            result.
+            result = self.nav_client.get_result()
+            print("Reached {} : {}.".format(goal.target, result))
+
+        # print finish
+        print("Mission complete. The total grape bunches counted was {}.".format(self.total_count))
 
 
 if __name__=="__main__":
     rospy.init_node('grape_navigator', anonymous=True)
     navigator = Navigator()
+    print("Navigator Initialised. Starting Navigation...")
     navigator.run()

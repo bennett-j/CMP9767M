@@ -21,7 +21,7 @@ from cv_bridge import CvBridge, CvBridgeError
 
 from sensor_msgs import point_cloud2
 from sensor_msgs.msg import PointCloud2, PointField
-from std_msgs.msg import Header, String
+from std_msgs.msg import Header, String, Int32
 
 from tf2_sensor_msgs.tf2_sensor_msgs import do_transform_cloud, transform_to_kdl
 
@@ -38,23 +38,27 @@ class image_projection:
     camera_model = None
     image_depth_ros = None
 
-    visualisation = True
+    
     # aspect ration between color and depth cameras
     # calculated as (color_horizontal_FOV/color_width) / (depth_horizontal_FOV/depth_width) from the kinectv2 urdf file - makes sense and numbers verified
     # (84.1/1920) / (70.0/512)
     color2depth_aspect = (84.1/1920) / (70.0/512)
 
     def __init__(self):    
-
+        
+        self.visualisation = True
         self.bridge = CvBridge()
 
         self.camera_info_sub = rospy.Subscriber('/thorvald_001/kinect2_right_camera/hd/camera_info', 
             CameraInfo, self.camera_info_callback)
 
-        self.pc2_pub = rospy.Publisher('/thorvald_001/grape_point_cloud', PointCloud2, queue_size=10)
+        self.cur_pc2_pub = rospy.Publisher('/thorvald_001/current_grape_point_cloud', PointCloud2, queue_size=10)
 
-        self.corners_pub = rospy.Publisher('/thorvald_001/grape_corners_point_cloud', PointCloud2, queue_size=10)
+        self.cum_pc2_pub = rospy.Publisher('/thorvald_001/cumulative_grape_point_cloud', PointCloud2, queue_size=10)
 
+        self.count_pub = rospy.Publisher('/grape_count', Int32, queue_size=10)
+
+        
         rospy.Subscriber("/thorvald_001/kinect2_right_camera/hd/image_color_rect",
             Image, self.image_color_callback)
 
@@ -99,8 +103,8 @@ class image_projection:
             print(e)
 
         # checking the stamps of the two images are close - they are.
-        print('Colour header stamp: ', self.colour_img_ros.header.stamp)
-        print('Depth header stamp: ', self.image_depth_ros.header.stamp)
+        # print('Colour header stamp: ', self.colour_img_ros.header.stamp)
+        # print('Depth header stamp: ', self.image_depth_ros.header.stamp)
         #print('Time(0): ', rospy.Time().now())
 
         #image_color = cv2.resize(image_color, None, fx=0.5, fy=0.5, interpolation = cv2.INTER_CUBIC)
@@ -109,6 +113,12 @@ class image_projection:
 
         image_color = self.colour_img
         
+
+        if self.visualisation:
+            # base image
+            drawing = self.colour_img.copy()
+            # drawing = np.zeros((self.colour_img.shape[0], self.colour_img.shape[1], 3), dtype=np.uint8)
+            
         
         blur = cv2.GaussianBlur(image_color,(5,5),0)
         hsv = cv2.cvtColor(blur, cv2.COLOR_BGR2HSV)
@@ -116,10 +126,9 @@ class image_projection:
         kernel_e5 = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(5,5))
         morphed = cv2.morphologyEx(mask1, cv2.MORPH_CLOSE, kernel_e5)
 
-        _, contours, hierarchy = cv2.findContours(morphed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-        area = [] #np.empty(len(contours))
-        centroid = [] #np.empty((len(contours),2))
-        drawing_ext = np.zeros((mask1.shape[0], mask1.shape[1], 3), dtype=np.uint8)
+        _, contours, _ = cv2.findContours(morphed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+        
+        centroid = []
         points = []
         corners = []
 
@@ -132,62 +141,60 @@ class image_projection:
                 cx = int(M['m10']/M['m00'])
                 cy = int(M['m01']/M['m00'])
                 centroid.append((cx, cy))
-                area.append(a)
-                color = (255,0,150) # purple
-                # only draw centroid for larger areas
-                drawing_ext = cv2.circle(drawing_ext, (cx, cy), 3, (255,255,0), 2)
+                
+                colour = (255,0,150) # purple
+                
 
                 # bounding box
-                x,y,w,h = cv2.boundingRect(c)
-                drawing_ext = cv2.rectangle(drawing_ext,(x,y),(x+w,y+h),(0,255,0),2)
-                # index 0  1
-                #       2  3                
-                #corners.append(((x,y), (x+w,y), (x,y+h), (x+w,y+h)))
-                pts = [(x,y), (x+w,y), (x,y+h), (x+w,y+h)]
+                x,y,w,h = cv2.boundingRect(c)               
+                # corner coords   
+                #    (x,y) .  . (x+w,y)
+                #  (x,y+h) .  . (x+w,y+h)
 
                 # above we have image coords (just x,y) need to find z then
                 # need to go from image > camera > map
 
-                # Convert centroid as image pixel to 3D point in camera frame
+                # convert centroid as image pixel to 3D point in camera frame
                 centroid_cam = self.pixel_to_camera((cx,cy))                
                 if centroid_cam is not None:
+                    # if the centroid pixel is valid, do the following
+
+                    # we're sensing front of the bunch so estimate true centroid by 
+                    # calculating width, assuming revolved shape and adding half the
+                    # width to the z value in camera frame.
+
+                    # convert two corner points to cam frame taking depth value to be same as centroid
+                    corner_cam = self.pixel_to_camera((x,y), depth_value=centroid_cam[2])
+                    corners.append(corner_cam)
+                    corner2_cam = self.pixel_to_camera((x+w,y), depth_value=centroid_cam[2])
+                    width = math.sqrt((corner2_cam[0]-corner_cam[0])**2
+                                       + (corner2_cam[1]-corner_cam[1])**2
+                                       + (corner2_cam[2]-corner_cam[2])**2)
+                    
+                    # add half of width to z value
+                    centroid_cam[2] += width/2
+
+                    # add to a list of detected bunch centroids
                     points.append(centroid_cam)
-
-                    # Convert each corner point (in img frame) to 3D point in camera frame, taking depth value of centroid
-                    # TODO: list comprehension?
-                    tmp=[]
-                    for pt in pts:
-                        b = self.pixel_to_camera(pt, depth_value=centroid_cam[2])
-                        tmp.append(b)
-
-                    corners.append(tmp)
+                                    
+                if self.visualisation:
+                    # only draw centroid for larger areas
+                    drawing = cv2.circle(drawing, (cx, cy), 3, (255,255,0), 2)
+                    drawing = cv2.rectangle(drawing,(x,y),(x+w,y+h),(0,255,0),2)
+                
 
                 else:
                     # if point not in depth img we won't show it so just continue
                     continue
 
             else:
-                color = (0,255,255) # yellow
-
-            cv2.drawContours(drawing_ext, contours, i, color, 2)
-            
-        fields = [PointField('x', 0, PointField.FLOAT32, 1),
-                    PointField('y', 4, PointField.FLOAT32, 1),
-                    PointField('z', 8, PointField.FLOAT32, 1)]
-
-        # either do pc2 = PointCloud2() then fill in the fields manually 
-        # or use Tim Field's point_cloud2.create_cloud() which returns a PointCloud2 obj
-        header = Header()
-        header.stamp = rospy.Time.now()
-        header.frame_id = "thorvald_001/kinect2_right_rgb_optical_frame" # this is what space/frame the points are defined in reference to. ie. robot vs map
-        pc2 = point_cloud2.create_cloud(header, fields, points)
-
-        # this is now a point cloud in camera coords - now let's transform to map
-
-        # transform
-        #points_map = self.tf_listener.transformPointCloud('map', pc2)
-        # not working for a PointCloud2? Need PCL?
+                colour = (0,255,255) # yellow
         
+        if self.visualisation:
+            cv2.drawContours(drawing, contours, i, colour, 2)
+            
+           
+        # get the transform
         try:
             # will data.header.stamp use the time the image arrived?
             transform = self.tfBuffer.lookup_transform('map', "thorvald_001/kinect2_right_rgb_optical_frame", self.colour_img_ros.header.stamp, rospy.Duration(1.0)) #
@@ -196,7 +203,7 @@ class image_projection:
            return
            # TODO figure out what to do here with the exception
         
-        cloud_out = do_transform_cloud(pc2, transform)
+        # apply the transform
 
         # transform points to map coords for saving in python
         # using structure of tf2_sensor_msgs.py by Willow Garage
@@ -207,14 +214,7 @@ class image_projection:
             #print(p[3:])
             points_map.append((p_out[0], p_out[1], p_out[2])) #+tuple(p[3:])
 
-        corners_map = []
-        for row in corners:
-            for cpnt in row:
-                p_out = t_kdl * PyKDL.Vector(cpnt[0], cpnt[1], cpnt[2])
-                #print(p[3:])
-                corners_map.append((p_out[0], p_out[1], p_out[2])) #+tuple(p[3:])
-
-
+        
         for i, point in enumerate(points_map):
             # corner = corners_map[4*i]
 
@@ -240,25 +240,37 @@ class image_projection:
                 self.bunch_centroids.append(point)
 
 
+        # == REPORT ==
+        # set up point clouds
+        fields = [PointField('x', 0, PointField.FLOAT32, 1),
+                    PointField('y', 4, PointField.FLOAT32, 1),
+                    PointField('z', 8, PointField.FLOAT32, 1)]
+
+        # either do pc2 = PointCloud2() then fill in the fields manually 
+        # or use Tim Field's point_cloud2.create_cloud() which returns a PointCloud2 obj
+        header = Header()
+        header.stamp = rospy.Time.now()
         header.frame_id = 'map'    
-        pc2_map = point_cloud2.create_cloud(header, fields, points_map)
+        
+        # create point clouds
+        current_bunch_pc2_map = point_cloud2.create_cloud(header, fields, points_map)
+        cumulat_bunch_pc2_map = point_cloud2.create_cloud(header, fields, self.bunch_centroids)
 
-        pc2_bunches_map = point_cloud2.create_cloud(header, fields, self.bunch_centroids)
+        # publish point cloudsso we can see in rviz
+        self.cur_pc2_pub.publish(current_bunch_pc2_map)
+        self.cum_pc2_pub.publish(cumulat_bunch_pc2_map)
 
-        # publish so we can see in rviz
-        # self.pc2_pub.publish(cloud_out)
-        self.pc2_pub.publish(pc2_map)
-
-        self.corners_pub.publish(pc2_bunches_map)
+        # publish count
+        self.count_pub.publish(len(self.bunch_centroids))
 
         print("Number of points: ", len(points))
         print("Number of bunches: ", len(self.bunch_centroids))
         
        
-
-        # show contours and centres 
-        cv2.imshow('Contours ext', cv2.resize(drawing_ext, (0,0), fx=0.5, fy=0.5))
-        cv2.waitKey(1)
+        if self.visualisation:
+            # show contours and centres 
+            cv2.imshow('Contours ext', cv2.resize(drawing, (0,0), fx=0.5, fy=0.5))
+            cv2.waitKey(1)
 
     def pixel_to_camera(self, point, depth_value=None):
         """Convert an x,y point in the image to a 3D point in the camera frame using the depth image.
@@ -294,7 +306,7 @@ class image_projection:
         camera_coords = [x/camera_coords[2] for x in camera_coords]
         camera_coords = [x*depth_value for x in camera_coords]
 
-        return tuple(camera_coords)
+        return camera_coords
     
 
 def main(args):
