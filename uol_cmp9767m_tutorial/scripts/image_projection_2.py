@@ -38,6 +38,8 @@ class image_projection:
             'thorvald_001/kinect2_front_rgb_optical_frame', rospy.Time())
         print 'Robot to camera transform:', 'T ', trans, 'R ', rot
 
+        print(trans)
+
         #define a point in robot (base_link) coordinates
         p_robot = PoseStamped()
         p_robot.header.frame_id = "thorvald_001/base_link"
