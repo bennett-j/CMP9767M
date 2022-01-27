@@ -1,5 +1,7 @@
 #! /usr/bin/env python
 
+# Author: James Bennett
+# Jan 2022
 # using template of uol_cmp9767m_tutorial/scripts/set_topo_nav_goal.py
 # by gpdas, email: pdasgautham@gmail.com
 
@@ -26,6 +28,7 @@ mission = (
 
 
 class Navigator:
+    """Carries out the task specified by mission."""
     def __init__(self):
         
         self.total_count = 0

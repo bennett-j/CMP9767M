@@ -1,5 +1,8 @@
 #!/usr/bin/env python
 
+# Author: James Bennett
+# Jan 2022
+
 import rospy
 from std_msgs.msg import String
 from geometry_msgs.msg import Twist
@@ -15,9 +18,7 @@ class CountingManager:
     """
     
     def __init__(self):
-        """
-        """
-        
+           
         # == CONSTANTS ==
         # distance to travel between slowing to capture images
         self.DISTANCE_TO_TRAVEL = 1 # metre
@@ -49,7 +50,6 @@ class CountingManager:
         
 
     def odom_callback(self, odom_msg):
-        
         # set reference position if there is none
         if self.odom_ref is None:
             self.odom_ref = odom_msg.pose.pose.position
@@ -76,6 +76,8 @@ class CountingManager:
         return SetModeResponse(req.mode)
 
     def run(self):
+        """Runs continuously and executes slowing behaviour when COUNT mode enabled."""
+        
         while not rospy.is_shutdown():
             #print('status: ', self.mode)
             

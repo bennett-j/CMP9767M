@@ -11,11 +11,11 @@ import numpy as np
 import PyKDL # available through tf2
 import math
 
-# Ros libraries
+# ROS libraries
 import rospy, image_geometry
 import tf2_ros
 
-# Ros Messages
+# ROS Messages
 from sensor_msgs.msg import Image, CameraInfo
 from cv_bridge import CvBridge, CvBridgeError
 from sensor_msgs import point_cloud2
@@ -24,44 +24,45 @@ from std_msgs.msg import Header, String, Int32
 
 
 class ImageProcessing:
-    
+    """Keeps track of saved bunch locations and incoming image streams. 
+    On request processes the latest image, detecting grape bunches and adding new ones to the saved list.
+    Reports the current count on a topic.
+    """
 
     def __init__(self):
 
+        # initialise values
         self.camera_model = None
         self.image_depth_ros = None
-
-    
         # aspect ration between color and depth cameras
         # calculated as (color_horizontal_FOV/color_width) / (depth_horizontal_FOV/depth_width) from the kinectv2 urdf file - makes sense and numbers verified
         # (84.1/1920) / (70.0/512)
         self.color2depth_aspect = (84.1/1920) / (70.0/512)
-        
-        self.visualisation = True
+        self.visualisation = False
         self.bridge = CvBridge()
 
+        
+
+        # point cloud publishers
+        self.cur_pc2_pub = rospy.Publisher('/thorvald_001/current_grape_point_cloud', PointCloud2, queue_size=10)
+        self.cum_pc2_pub = rospy.Publisher('/thorvald_001/cumulative_grape_point_cloud', PointCloud2, queue_size=10)
+        # count publishers
+        self.count_pub = rospy.Publisher('/grape_count', Int32, queue_size=10)
+
+        # subsribers
+        rospy.Subscriber("/thorvald_001/kinect2_right_camera/hd/image_color_rect",
+            Image, self.image_color_callback)
+        rospy.Subscriber("/thorvald_001/kinect2_right_sensor/sd/image_depth_rect",
+            Image, self.image_depth_callback)
+        rospy.Subscriber("/process_img", String, self.do_image_proc)
         self.camera_info_sub = rospy.Subscriber('/thorvald_001/kinect2_right_camera/hd/camera_info', 
             CameraInfo, self.camera_info_callback)
 
-        self.cur_pc2_pub = rospy.Publisher('/thorvald_001/current_grape_point_cloud', PointCloud2, queue_size=10)
-
-        self.cum_pc2_pub = rospy.Publisher('/thorvald_001/cumulative_grape_point_cloud', PointCloud2, queue_size=10)
-
-        self.count_pub = rospy.Publisher('/grape_count', Int32, queue_size=10)
-
-        
-        rospy.Subscriber("/thorvald_001/kinect2_right_camera/hd/image_color_rect",
-            Image, self.image_color_callback)
-
-        rospy.Subscriber("/thorvald_001/kinect2_right_sensor/sd/image_depth_rect",
-            Image, self.image_depth_callback)
-
-        rospy.Subscriber("/process_img", String, self.do_image_proc)
-
+        # tf2 listener
         self.tfBuffer = tf2_ros.Buffer()
         self.tfListener = tf2_ros.TransformListener(self.tfBuffer)
-        # Once the listener is created, it starts receiving tf2 transformations over the wire, and buffers them for up to 10 seconds.
-
+        
+        # to store centroids of detected and non duplicate bunches
         self.bunch_centroids = []
                 
     def camera_info_callback(self, data):
@@ -76,6 +77,7 @@ class ImageProcessing:
         self.colour_img_ros = data
         
     def do_image_proc(self, msg):
+        """This node executed on request from the manager and does bulk of the work."""
         # wait for camera_model and depth image to arrive
         if self.camera_model is None:
             return
@@ -93,55 +95,51 @@ class ImageProcessing:
         except CvBridgeError as e:
             print(e)
 
-        # checking the stamps of the two images are close - they are.
-        # print('Colour header stamp: ', self.colour_img_ros.header.stamp)
-        # print('Depth header stamp: ', self.image_depth_ros.header.stamp)
-        #print('Time(0): ', rospy.Time().now())
-
-        #image_color = cv2.resize(image_color, None, fx=0.5, fy=0.5, interpolation = cv2.INTER_CUBIC)
-        # detect a red blob in the color image
-        #image_mask = cv2.inRange(image_color, (0, 0, 80), (20, 20, 255))
-
-        image_color = self.colour_img
-        
-
         if self.visualisation:
             # base image
             drawing = self.colour_img.copy()
             # drawing = np.zeros((self.colour_img.shape[0], self.colour_img.shape[1], 3), dtype=np.uint8)
-            
-        
-        blur = cv2.GaussianBlur(image_color,(5,5),0)
+
+        # create binary image of where grapes are likely to be    
+        blur = cv2.GaussianBlur(self.colour_img,(5,5),0)
         hsv = cv2.cvtColor(blur, cv2.COLOR_BGR2HSV)
         mask1 = cv2.inRange(hsv, (75, 0, 25), (150, 150, 75))
         kernel_e7 = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(7,7))
         morphed = cv2.morphologyEx(mask1, cv2.MORPH_CLOSE, kernel_e7)
 
+        # use cv2 fnc to find contours
         _, contours, _ = cv2.findContours(morphed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
         
+        # intialise arrays
         centroid = []
         points = []
         corners = []
 
+        # loop through all contours found
         for i, c in enumerate(contours):
+            
+            # find the area inside the contour
             a = cv2.contourArea(c)
             
+            # only interested in significant areas
             # if M["m00"] == 0: this only occurs when area = 0 so won't get erros if we filter out small areas
             if a > 500:
+                
+                # find centre of contour with moment method
                 M = cv2.moments(c)
                 cx = int(M['m10']/M['m00'])
                 cy = int(M['m01']/M['m00'])
                 centroid.append((cx, cy))
                 
+                # assign for visualising which are of significant area
                 colour = (255,0,150) # purple
                 
-
-                # bounding box
-                x,y,w,h = cv2.boundingRect(c)               
+                # get the bounding bounding box so the size of the bunch can be estimated
                 # corner coords   
                 #    (x,y) .  . (x+w,y)
                 #  (x,y+h) .  . (x+w,y+h)
-
+                x,y,w,h = cv2.boundingRect(c)               
+                
                 # above we have image coords (just x,y) need to find z then
                 # need to go from image > camera > map
 
@@ -185,15 +183,16 @@ class ImageProcessing:
                     continue
 
             else:
+                # assign the colour for small areas
                 colour = (0,255,255) # yellow
         
             if self.visualisation:
                 cv2.drawContours(drawing, contours, i, colour, 2)
             
            
-        # get the transform
+        # get the transform from camera to map
         try:
-            # will data.header.stamp use the time the image arrived?
+            # use image timestamp to ensure the transform matches with when image captured
             transform = self.tfBuffer.lookup_transform('map', "thorvald_001/kinect2_right_rgb_optical_frame", self.colour_img_ros.header.stamp, rospy.Duration(1.0)) #
         except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
            print(e)
@@ -203,17 +202,17 @@ class ImageProcessing:
 
         # transform points to map coords for saving in python
         # using structure of tf2_sensor_msgs.py by Willow Garage
+        # using PyKDL so can transform and save a python list without creating a serialised PointCloud2 message
         t_kdl = self.transform_to_kdl(transform)
         points_map = []
         for p in points:
             p_out = t_kdl * PyKDL.Vector(p[0], p[1], p[2])
-            #print(p[3:])
-            points_map.append((p_out[0], p_out[1], p_out[2])) #+tuple(p[3:])
+            points_map.append((p_out[0], p_out[1], p_out[2]))
 
-        
+        # go through each detected bunch and decide if it should be appended to the list of saved bunches
         for i, point in enumerate(points_map):
                         
-            # initialise query append to true (add unless proven not to)
+            # initialise query append to true (add to list unless proven not to)
             q_append = True
 
             if point[2] < 0.2:
@@ -296,14 +295,9 @@ class ImageProcessing:
                 x,y = int(depth_coords[0]), int(depth_coords[1])
                 region = self.depth_img[ x-s : x+s+1,
                                          y-s : y+s+1]
-
+                # get median of region
                 depth_value = np.nanmedian(region)
                 
-                # print("original: ", self.depth_img[int(depth_coords[0]), int(depth_coords[1])] )
-                # print("medianed: ", depth_value)
-                # extract depth at the found coordinate
-                #depth_value = self.depth_img[int(depth_coords[0]), int(depth_coords[1])] 
-
                 # if the depth value is still nan (say from a large region of nans) then return
                 if math.isnan(depth_value):
                     return
@@ -320,6 +314,12 @@ class ImageProcessing:
         return camera_coords
 
     def transform_to_kdl(self, t):
+        """Convert a tf2 transform to a PyKDL frame
+
+        @param t: a tf2 transform
+        @return: PyKDL.Frame of the transform
+
+        """
         # Copyright (c) 2008, Willow Garage, Inc.
         # All rights reserved.
         return PyKDL.Frame(PyKDL.Rotation.Quaternion(t.transform.rotation.x, t.transform.rotation.y,
@@ -330,7 +330,8 @@ class ImageProcessing:
     
 
 def main(args):
-    '''Initializes and cleanup ros node'''
+    """Initializes and cleans up ROS node"""
+
     rospy.init_node('image_processing', anonymous=True)
     ImageProcessing()
     print("Initialised. Waiting for command.")
