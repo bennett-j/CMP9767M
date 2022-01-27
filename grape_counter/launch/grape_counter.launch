@@ -3,17 +3,13 @@
 
     <include file="$(find bacchus_gazebo)/launch/vineyard_demo.launch" >
         <arg name="world_name" default="vineyard_small" />
-        <arg name="rviz_config_file" default="$(find grape_counter)/rviz/rviz_grape_two_pc.rviz" />
+        <arg name="rviz_config_file" default="$(find grape_counter)/rviz/rviz_topo_twopc.rviz" />
         <arg name="gui" default="false" />
-        <!--<arg name="nav_map_yaml" default="$(find grape_counter)/maps/test_mod2.yaml" />-->
     </include>
 
-    <!--uol_cmp9767m_tutorial/config/topo_nav.rviz   $(find grape_counter)/rviz/rviz_grape_two_pc.rviz  -->
-
-    <include file="$(find uol_cmp9767m_tutorial)/launch/topo_nav.launch" >
-    </include>
-
-    <!--<node pkg="grape_counter" name="image_projection" type="grape_counting.py" output="screen" />-->
+    <include file="$(find uol_cmp9767m_tutorial)/launch/topo_nav.launch" />
+    
+    <node pkg="grape_counter" name="image_processing" type="grape_counting.py" output="screen" />
 
     <node pkg="grape_counter" name="counting_mgr" type="counting_manager.py" output="screen" />
 
