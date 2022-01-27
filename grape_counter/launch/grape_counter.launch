@@ -13,5 +13,4 @@
 
     <node pkg="grape_counter" name="counting_mgr" type="counting_manager.py" output="screen" />
 
-
 </launch>
