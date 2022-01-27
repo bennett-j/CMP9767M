@@ -1,50 +1,41 @@
 #!/usr/bin/env python
 
+# Author: James Bennett
+# Jan 2022
+# Modified from uol_cmp9767m_tutorials image_projection3.py
+
 # Python libs
-from cmath import sqrt
-import sys, time
-from tokenize import String
-
-# OpenCV
+import sys
 import cv2
-
-# numpy
 import numpy as np
+import PyKDL # available through tf2
+import math
 
 # Ros libraries
-import roslib, rospy, image_geometry, tf
+import rospy, image_geometry
+import tf2_ros
 
 # Ros Messages
 from sensor_msgs.msg import Image, CameraInfo
-from geometry_msgs.msg import PoseStamped
 from cv_bridge import CvBridge, CvBridgeError
-
 from sensor_msgs import point_cloud2
 from sensor_msgs.msg import PointCloud2, PointField
 from std_msgs.msg import Header, String, Int32
 
-from tf2_sensor_msgs.tf2_sensor_msgs import do_transform_cloud, transform_to_kdl
 
-# going to use tf2 because tf depreciated 
-# useful for what I want to do with transforms and pc2
-# https://wiki.ros.org/tf2/Tutorials/Writing%20a%20tf2%20listener%20%28Python%29
-import tf2_ros
+class ImageProcessing:
+    
 
-import PyKDL
-import math
+    def __init__(self):
 
-
-class image_projection:
-    camera_model = None
-    image_depth_ros = None
+        self.camera_model = None
+        self.image_depth_ros = None
 
     
-    # aspect ration between color and depth cameras
-    # calculated as (color_horizontal_FOV/color_width) / (depth_horizontal_FOV/depth_width) from the kinectv2 urdf file - makes sense and numbers verified
-    # (84.1/1920) / (70.0/512)
-    color2depth_aspect = (84.1/1920) / (70.0/512)
-
-    def __init__(self):    
+        # aspect ration between color and depth cameras
+        # calculated as (color_horizontal_FOV/color_width) / (depth_horizontal_FOV/depth_width) from the kinectv2 urdf file - makes sense and numbers verified
+        # (84.1/1920) / (70.0/512)
+        self.color2depth_aspect = (84.1/1920) / (70.0/512)
         
         self.visualisation = True
         self.bridge = CvBridge()
@@ -207,13 +198,12 @@ class image_projection:
         except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
            print(e)
            return
-           # TODO figure out what to do here with the exception
         
         # apply the transform
 
         # transform points to map coords for saving in python
         # using structure of tf2_sensor_msgs.py by Willow Garage
-        t_kdl = transform_to_kdl(transform)
+        t_kdl = self.transform_to_kdl(transform)
         points_map = []
         for p in points:
             p_out = t_kdl * PyKDL.Vector(p[0], p[1], p[2])
@@ -222,13 +212,7 @@ class image_projection:
 
         
         for i, point in enumerate(points_map):
-            # corner = corners_map[4*i]
-
-            # # approximate size of bunch as radius from centre to one corner
-            # size_radius = math.sqrt((point[0] - corner[0])**2
-            #                         + (point[1] - corner[1])**2
-            #                         + (point[2] - corner[2])**2)
-            
+                        
             # initialise query append to true (add unless proven not to)
             q_append = True
 
@@ -334,12 +318,21 @@ class image_projection:
         camera_coords = [x*depth_value for x in camera_coords]
 
         return camera_coords
+
+    def transform_to_kdl(self, t):
+        # Copyright (c) 2008, Willow Garage, Inc.
+        # All rights reserved.
+        return PyKDL.Frame(PyKDL.Rotation.Quaternion(t.transform.rotation.x, t.transform.rotation.y,
+                                                    t.transform.rotation.z, t.transform.rotation.w),
+                            PyKDL.Vector(t.transform.translation.x, 
+                                        t.transform.translation.y, 
+                                        t.transform.translation.z))
     
 
 def main(args):
     '''Initializes and cleanup ros node'''
-    rospy.init_node('image_projection', anonymous=True)
-    ic = image_projection()
+    rospy.init_node('image_processing', anonymous=True)
+    ImageProcessing()
     print("Initialised. Waiting for command.")
     try:
         rospy.spin()
