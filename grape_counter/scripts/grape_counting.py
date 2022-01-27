@@ -281,28 +281,41 @@ class image_projection:
         """
 
         if depth_value is None:
-            # Map(ping) from pixel coord in colour img to pixel coord in depth img
+            # map(ping) from pixel coord in colour img to pixel coord in depth img
             depth_coords = (self.depth_img.shape[0]/2 + (point[1] - self.colour_img.shape[0]/2)*self.color2depth_aspect,    # y
                             self.depth_img.shape[1]/2 + (point[0] - self.colour_img.shape[1]/2)*self.color2depth_aspect)    # x
         
             # 1080 x 1920 scales to 345 x 614 which is wider than the depth image at 424 x 512
-            # Therefore only attempt point transform if depth value available
+            # therefore only attempt point transform if depth value available
             if depth_coords[1] >= 0 and depth_coords[1] < self.depth_img.shape[1]:
-                # Extract depth at the found coordinate
-                depth_value = self.depth_img[int(depth_coords[0]), int(depth_coords[1])] 
+                
+                # the depth image has many nan values from where the sensor fails to get a reading
+                # to deal with the nans and do some averaging/blurring on the image, perform a median blur
+                
+                # extract a region surrounding the point of interest
+                # a size of 5 will create an 11x11 kernel
+                s = 5
+                x,y = int(depth_coords[0]), int(depth_coords[1])
+                region = self.depth_img[ x-s : x+s+1,
+                                         y-s : y+s+1]
 
-                # if the pixel has value nan (that's how the camera outputs it) then return
+                depth_value = np.nanmedian(region)
+                
+                # print("original: ", self.depth_img[int(depth_coords[0]), int(depth_coords[1])] )
+                # print("medianed: ", depth_value)
+                # extract depth at the found coordinate
+                #depth_value = self.depth_img[int(depth_coords[0]), int(depth_coords[1])] 
+
+                # if the depth value is still nan (say from a large region of nans) then return
                 if math.isnan(depth_value):
-                    # TODO: in perfect world this shouldn't happen - are the cameras misaligned - is the transform wrong - are we sensing grape where there isn't?
-                    #print("Depth for ", point, " isnan")
                     return
             else:
                 return
 
-        # Calculate point in camera coords
-        # Project point (x,y) to 3D ray - returns unit vector at camera pinhole in direction of pixel
+        # calculate point in camera coords
+        # project point (x,y) to 3D ray - returns unit vector at camera pinhole in direction of pixel
         camera_coords = self.camera_model.projectPixelTo3dRay((point[0], point[1]))
-        # Scale vector so z=1 (metre) then multiply by depth value
+        # scale vector so z=1 (metre) then multiply by depth value
         camera_coords = [x/camera_coords[2] for x in camera_coords]
         camera_coords = [x*depth_value for x in camera_coords]
 
